@@ -58,14 +58,21 @@ knitr::opts_chunk$set(echo = TRUE, fig.align = "center")
     - Shift all tags by *d/2*
 ![Zhang, Y., Liu, T., Meyer, C. A., Eeckhoute, J., Johnson, D. S., Bernstein, B. E., ... & Liu, X. S. (2008). Model-based analysis of ChIP-Seq (MACS). Genome biology, 9(9), R137](img/fig1a.png)
 
+MACS calculates d from the top peaks in the data
+MACS will not calculate a different d for each protein you are chipping for
+Protein lengths may differ, so you would get a diff d for each protein
+
 ## MACS: Overview
 
 * Accounts for regional biases via dynamic parameter estimation
     - Tag distribution modelled with Poisson distribution
     - Estimate $\lambda_{BG}$ from control tags
     - Slide width=$d$ bins across the genome to identify candidate peaks
-    - Estimate $\lambda_{1k},\lambda_{15k},\lambda_{10k}$ surrounding each candidate peak
+    - Estimate $\lambda_{1k},\lambda_{5k},\lambda_{10k}$ surrounding each candidate peak
     - Select the maximum $\lambda$ and calculate p-value based on this parameter
+
+MACS throws aways anything with more than one tag (in documentation can keep the first 2)
+Estimate lambda with sliding windows across the entire genome
 
 ![Zhang, Y., Liu, T., Meyer, C. A., Eeckhoute, J., Johnson, D. S., Bernstein, B. E., ... & Liu, X. S. (2008). Model-based analysis of ChIP-Seq (MACS). Genome biology, 9(9), R137](img/fig1c.png)
 
@@ -147,17 +154,19 @@ macs2 callpeak -t Trt.bed -c Ctrl.bed -f AUTO -g mm -n Out
 * Commandline tool however `bedr` R package available
 * Many [installation options](http://bedtools.readthedocs.io/en/latest/content/installation.html) (homebrew, macports, etc.)
 
+- need to call module load bedr and then module load R to use it on Odyssey
+
 ## Bedtools: Functions
 * We will be using data corresponding to blacklist sites from https://sites.google.com/site/anshulkundaje/projects/blacklists.
 ```{r,eval=FALSE}
 # Load bedr
 library(bedr)
 
-# Simulate 1e5 inervals all of length 250
-rand.reads <- get.random.regions(n=1e5,species='human',build='hg19',size.mean=log(250+1),size.sd=0)
+# Simulate 1e5 intervals all of length 250
+rand.reads <- get.random.regions(n=1e5,species='human',build='hg38',size.mean=log(250+1),size.sd=0)
 
 # Now let's grow these up to 500
-rand.reads <- grow.region(rand.reads,start.add=125,end.add=125)
+rand.reads <- grow.region(rand.reads,start.add=125,end.add=125) # add 125 to each side of the regions
 
 # Now let's load the blacklist sites from the data folder
 blacklist.sites <- as.data.frame(read.table("data/hg38.blacklist.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
@@ -170,14 +179,19 @@ rand.reads <- bedr.subtract.region(rand.reads,blacklist.sites)
 write.table(rand.reads,file='data/randomIntervals.bed',row.names = FALSE,col.names=FALSE,quote = FALSE,sep = "\t")
 
 # Get the corresponding nucleotide sequences
-rand.reads <- get.fasta(x=rand.reads,fasta="~/Desktop/Research/Vikes/data/genomes/hg19.fa")
+rand.reads <- get.fasta(x=rand.reads,fasta="~/Desktop/Research/Vikes/data/genomes/hg19.fa") #you need to specify the right fasta file for the right genome (the default one is very small library)
+# now you have nucleotide sequence (instead of start and end position) for each tagged site
 
-# Conver the sequences to upper case. Get the reverse complement
+# delete invalid sequences
+rand.reads <- rand.reads[substr(rand.reads,1,1)!="N"]
+
+# Convert the sequences to upper case. Get the reverse complement
 rand.reads$sequence <- toupper(rand.reads$sequence)
-rand.reads$sequence.rc <- chartr("ATGC","TACG",rand.reads$sequence)
+rand.reads$sequence.rc <- chartr("ATGC","TACG",rand.reads$sequence) # get reverse complement strand
 
 # Write to output fasta file
 write.table(rand.reads,file='data/randomIntervals.fa',row.names = FALSE,col.names=FALSE,quote = FALSE,sep = "\t")
+# now we have the sequences we can save it as a fasta file, if you want to save as a bed file you need chr start and chr end
 ```
 
 ## Bedtools: Functions
